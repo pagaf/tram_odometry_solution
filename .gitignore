@@ -3,3 +3,7 @@
 dataset/
 *.db3
 data.zip
+
+# Python caches
+__pycache__/
+*.pyc

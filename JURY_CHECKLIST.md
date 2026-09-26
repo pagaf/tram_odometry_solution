@@ -12,8 +12,11 @@
 ## Критерий 2 — положение
 
 - Состояние интегрирует `s`, а не произвольный 2D yaw.
-- Стартовая MGRS/UTM выставка по двум GNSS-антеннам и известным TF.
-- Основной режим: `p=Gamma(s)` по pathgraph.
+- Стартовая выставка по двум GNSS-антеннам и известным TF в системе pathgraph (`UTM 37N − (300000, 6100000)`).
+- Основной режим: `p=Gamma(s)` по маршруту `config/route.json` = pathgraph + снятые конечные участки.
+- Привязка к маршруту с учётом курса (пути ST/TS в 3.5 м друг от друга).
+- Map-matching по 23 остановкам на платформах гасит дрейф от масштаба колёс (±1.5% между прогонами).
+- До инициализации позиция не публикуется (нет «мусора» в произвольной системе).
 - Ориентация кузова использует базу тележек 7.55 m.
 - `Odometry`: stamp, frame_id, child_frame_id, pose, twist и covariance заполнены.
 
@@ -22,6 +25,7 @@
 - 4 режима: normal/front-slip/rear-slip/common-slip.
 - NIS gating + Huber influence limit.
 - Один одометр может быть отброшен независимо от второго.
+- Согласованные тележки (|front−rear| ≤ 0.15 м/с) не отбрасываются гейтом: резкое торможение рельсовым тормозом не принимается за выброс.
 - Common-mode slip определяется не только разностью колёс, но и противоречием физической модели.
 - Медленная model adaptation разрешена только при high-confidence normal adhesion.
 - Zero-velocity constraint снижает drift на остановках.
@@ -35,12 +39,9 @@
 - `/result/latency_ms` измеряет локальное callback->publish processing time.
 - Runtime не требует интернета.
 
-## Перед сдачей обязательно
+## Воспроизведение офлайн
 
-1. `python3 tools/calibrate_from_bags.py dataset/data --out calibration.json --val-fraction 0.2`
-2. Вставить `dynamics_coeffs` из calibration.json в YAML.
-3. `python3 tools/evaluate_dataset.py dataset/data --calibration calibration.json --out metrics.csv`
-4. После получения карты заполнить `path_csv`.
-5. Идентифицировать/проверить `curve_accel_per_curvature`; без данных оставить 0.
-6. Записать `ros2 topic hz /result/velocity`, `ros2 topic hz /result/position`, `/result/latency_ms`.
-7. Сохранить таблицу ours vs front/rear/mean-wheel на holdout-bags.
+1. `python3 tools/calibrate_from_bags.py task_description/data --out calibration.json` — коэффициенты `dynamics_coeffs` (уже перенесены в YAML).
+2. `python3 tools/build_route.py task_description/data --bags <список bag> --out src/tram_reserve_odometry/config/route.json` — маршрут и остановки.
+3. `python3 tools/replay_eval.py task_description/data --out replay.csv` — метрики кода ноды против GNSS-эталона.
+4. На ROS: `ros2 topic hz /result/velocity`, `ros2 topic hz /result/position`, `/result/latency_ms`.

@@ -15,9 +15,23 @@ tram_reserve_odometry:
     gnss_init_seconds: 5.0
     gnss_pair_tolerance_s: 0.20
 
-    # Organizer path map: metric MGRS/UTM grid, columns x,y[,z].
-    path_csv: ""
+    # Output frame = organizer pathgraph frame = UTM zone 37N minus the grid offset
+    # (verified: GNSS of the runs lies on the pathgraph tracks within ~5 cm).
+    utm_zone: 37
+    grid_offset_easting: 300000.0
+    grid_offset_northing: 6100000.0
+
+    # Route map: organizer pathgraph (ST + TS) + terminal pieces, see tools/build_route.py.
+    # Relative paths are resolved against the package share directory.
+    path_file: "config/route.json"
     path_z_is_rail_height: true
+    max_path_init_lateral_m: 100.0
+    join_length_m: 30.0
+    # Platform stop anchoring (map-matching on surveyed stopping points in route.json).
+    # Set stop_anchor_gain to 0.0 to disable.
+    stop_anchor_min_s: 8.0
+    stop_anchor_window_m: 25.0
+    stop_anchor_gain: 0.8
 
     manual_initialization: false
     initial_easting: 0.0
@@ -25,22 +39,27 @@ tram_reserve_odometry:
     initial_z: 0.0
     initial_yaw: 0.0
 
-    # Nonlinear drive + estimator parameters.
+    # Nonlinear drive + estimator parameters (tuned by tools/replay_eval.py on TRAIN bags).
     tau_accel: 0.35
     wheel_sigma: 0.10
-    process_accel_sigma: 0.55
+    process_accel_sigma: 1.5
     max_speed_mps: 25.0
     bias_adapt_gain: 0.006
 
-    # Explicit path-dependent terms. grade_gain=1 is Newtonian gravity.
-    # curve coefficient must be identified after receiving the path; keep 0 until then.
-    grade_gain: 1.0
+    # Explicit path-dependent terms. dynamics_coeffs were identified without the grade
+    # term, so the mean grade is already inside them: grade_gain=1 double-counts it.
+    grade_gain: 0.0
     curve_accel_per_curvature: 0.0
 
     # Robust innovation/slip logic.
     nis_gate: 9.0
     stop_speed_mps: 0.06
     stop_confirm_s: 0.35
+    wheel_fresh_s: 0.22
+    common_slip_weight: 1.0
+    # Both bogies agreeing within this bound are trusted even against the model
+    # (real emergency/track-brake decelerations are not outliers).
+    consensus_tol_mps: 0.15
     publish_max_rate_hz: 50.0
 
     # Optional physical drivetrain parameters. Leave zeros until official values are known.
@@ -51,8 +70,7 @@ tram_reserve_odometry:
     drive_efficiency: 1.0
     driven_equivalent_count: 1.0
 
-    # Bootstrap fit from the uploaded 30618_0a83c933 bag only.
-    # Refit on a TRAIN split of the full dataset before final submission.
-    dynamics_coeffs: [0.000140604885, 1.85266353, -0.268904638,
-                      -2.43778005, 1.57779757, -0.00808316467,
-                      0.000480035941, -0.0745746855, 0.0115504134]
+    # tools/calibrate_from_bags.py fit on the full dataset (calibration.json).
+    dynamics_coeffs: [-0.101347373553, 2.24722414933, -0.722776112188,
+                      -2.41830733901, 1.73151381592, 0.0143448652614,
+                      -0.000665941677832, -0.0794667487301, -0.0174199129043]

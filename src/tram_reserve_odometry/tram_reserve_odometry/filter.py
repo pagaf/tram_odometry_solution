@@ -125,9 +125,11 @@ class AdhesionModeObserver:
     reliabilities. This is deliberately lightweight for real-time ROS execution.
     """
 
-    def __init__(self, persistence: float = 0.94):
+    def __init__(self, persistence: float = 0.94, common_slip_weight: float = 1.0):
         self.p = [0.94, 0.02, 0.02, 0.02]
         self.persistence = clamp(float(persistence), 0.5, 0.995)
+        # Scales the evidence for common-mode slip (both bogies agree, model disagrees).
+        self.common_slip_weight = clamp(float(common_slip_weight), 0.0, 1.0)
 
     @staticmethod
     def _g(x: float, sigma: float) -> float:
@@ -180,7 +182,7 @@ class AdhesionModeObserver:
         common_res_ev = clamp((abs(common_res) - 0.28) / 1.10, 0.0, 1.0)
         agreement_ev = 1.0 - clamp(disagreement / 0.35, 0.0, 1.0)
         common_ev = max(common_res_ev * agreement_ev, accel_contradiction * agreement_ev)
-        lc = 0.02 + 0.98 * common_ev
+        lc = 0.02 + 0.98 * self.common_slip_weight * common_ev
 
         like = [max(1e-8, ln), max(1e-8, lf), max(1e-8, lr), max(1e-8, lc)]
         post = [pred[i] * like[i] for i in range(4)]
@@ -226,6 +228,8 @@ class RobustTramFilter:
         nis_gate: float = 9.0,
         stop_speed: float = 0.06,
         stop_confirm_s: float = 0.35,
+        common_slip_weight: float = 1.0,
+        consensus_tol_mps: float = 0.0,
     ):
         self.model = NonlinearDriveModel(
             coeffs,
@@ -245,6 +249,9 @@ class RobustTramFilter:
         self.nis_gate = max(1.0, float(nis_gate))
         self.stop_speed = max(0.01, float(stop_speed))
         self.stop_confirm_s = max(0.05, float(stop_confirm_s))
+        # Two independent bogies agreeing within this tolerance are trusted as-is:
+        # a genuine hard deceleration (e.g. magnetic track brake) is not an outlier.
+        self.consensus_tol = max(0.0, float(consensus_tol_mps))
 
         self.x = [0.0, 0.0, 0.0]
         self.P = [
@@ -256,7 +263,7 @@ class RobustTramFilter:
         self.last_wheel_t: Optional[float] = None
         self.last_wheel_v: Optional[float] = None
         self.filtered_wheel_accel = 0.0
-        self.adhesion = AdhesionModeObserver()
+        self.adhesion = AdhesionModeObserver(common_slip_weight=common_slip_weight)
         self.stop_since: Optional[float] = None
         self.diag = FilterDiagnostics()
 
@@ -351,7 +358,7 @@ class RobustTramFilter:
             self.last_wheel_v = fused
         return score
 
-    def _measurement_update(self, z: float, reliability: float) -> float:
+    def _measurement_update(self, z: float, reliability: float, robust: bool = True) -> float:
         z = clamp(float(z), 0.0, self.max_speed)
         reliability = clamp(reliability, 0.02, 1.0)
         innovation = z - self.x[1]
@@ -359,14 +366,15 @@ class RobustTramFilter:
         R = (self.wheel_sigma / reliability) ** 2
         S0 = max(1e-12, self.P[1][1] + R)
         nis = innovation * innovation / S0
-        if nis > self.nis_gate:
-            R *= min(1000.0, (nis / self.nis_gate) ** 2)
-        # Huber-type additional protection against gross, isolated outliers.
-        S = max(1e-12, self.P[1][1] + R)
-        huber = 2.5 * math.sqrt(S)
-        if abs(innovation) > huber:
-            R *= min(100.0, abs(innovation) / max(huber, 1e-9))
+        if robust:
+            if nis > self.nis_gate:
+                R *= min(1000.0, (nis / self.nis_gate) ** 2)
+            # Huber-type additional protection against gross, isolated outliers.
             S = max(1e-12, self.P[1][1] + R)
+            huber = 2.5 * math.sqrt(S)
+            if abs(innovation) > huber:
+                R *= min(100.0, abs(innovation) / max(huber, 1e-9))
+        S = max(1e-12, self.P[1][1] + R)
 
         K = [self.P[i][1] / S for i in range(3)]
         oldP = [row[:] for row in self.P]
@@ -440,11 +448,16 @@ class RobustTramFilter:
         self.diag.front_slip_ratio = 0.0 if front is None else clamp((front - self.velocity) / vden, -1.0, 1.0)
         self.diag.rear_slip_ratio = 0.0 if rear is None else clamp((rear - self.velocity) / vden, -1.0, 1.0)
 
+        consensus = (
+            front is not None and rear is not None and abs(front - rear) <= self.consensus_tol
+        )
+        if consensus:
+            f_rel = r_rel = 1.0
         fw = rw = 0.0
         if update_front and front is not None:
-            fw = self._measurement_update(front, f_rel)
+            fw = self._measurement_update(front, f_rel, robust=not consensus)
         if update_rear and rear is not None:
-            rw = self._measurement_update(rear, r_rel)
+            rw = self._measurement_update(rear, r_rel, robust=not consensus)
         self.diag.front_weight = fw
         self.diag.rear_weight = rw
 
