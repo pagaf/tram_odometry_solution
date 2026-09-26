@@ -1,0 +1,58 @@
+tram_reserve_odometry:
+  ros__parameters:
+    # Organizer clarification overrides the old README: raw bogie speeds are km/h.
+    wheel_units: "kmph"
+    frame_id: "map"
+    child_frame_id: "base_link"
+
+    # Geometry supplied by organizers, REP-103 base_link.
+    wheelbase_m: 7.55
+    master_x_m: -9.873
+    rover_x_m: 2.563
+    antenna_z_m: 3.0
+
+    # GNSS is ONLY an initialization/reference channel and is frozen afterwards.
+    gnss_init_seconds: 5.0
+    gnss_pair_tolerance_s: 0.20
+
+    # Organizer path map: metric MGRS/UTM grid, columns x,y[,z].
+    path_csv: ""
+    path_z_is_rail_height: true
+
+    manual_initialization: false
+    initial_easting: 0.0
+    initial_northing: 0.0
+    initial_z: 0.0
+    initial_yaw: 0.0
+
+    # Nonlinear drive + estimator parameters.
+    tau_accel: 0.35
+    wheel_sigma: 0.10
+    process_accel_sigma: 0.55
+    max_speed_mps: 25.0
+    bias_adapt_gain: 0.006
+
+    # Explicit path-dependent terms. grade_gain=1 is Newtonian gravity.
+    # curve coefficient must be identified after receiving the path; keep 0 until then.
+    grade_gain: 1.0
+    curve_accel_per_curvature: 0.0
+
+    # Robust innovation/slip logic.
+    nis_gate: 9.0
+    stop_speed_mps: 0.06
+    stop_confirm_s: 0.35
+    publish_max_rate_hz: 50.0
+
+    # Optional physical drivetrain parameters. Leave zeros until official values are known.
+    # When filled, /result/model_motor_torque_nm becomes available.
+    vehicle_mass_kg: 0.0
+    wheel_radius_m: 0.0
+    gear_ratio: 0.0
+    drive_efficiency: 1.0
+    driven_equivalent_count: 1.0
+
+    # Bootstrap fit from the uploaded 30618_0a83c933 bag only.
+    # Refit on a TRAIN split of the full dataset before final submission.
+    dynamics_coeffs: [0.000140604885, 1.85266353, -0.268904638,
+                      -2.43778005, 1.57779757, -0.00808316467,
+                      0.000480035941, -0.0745746855, 0.0115504134]

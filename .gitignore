@@ -1,0 +1,5 @@
+
+# Local dataset
+dataset/
+*.db3
+data.zip

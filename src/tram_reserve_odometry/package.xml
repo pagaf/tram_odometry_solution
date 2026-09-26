@@ -1,0 +1,19 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>tram_reserve_odometry</name>
+  <version>0.1.0</version>
+  <description>Model-based reserve odometry for tram without GNSS after initialization.</description>
+  <maintainer email="team@example.com">hackathon-team</maintainer>
+  <license>MIT</license>
+  <buildtool_depend>ament_python</buildtool_depend>
+  <exec_depend>rclpy</exec_depend>
+  <exec_depend>ament_index_python</exec_depend>
+  <exec_depend>launch</exec_depend>
+  <exec_depend>launch_ros</exec_depend>
+  <exec_depend>nav_msgs</exec_depend>
+  <exec_depend>sensor_msgs</exec_depend>
+  <exec_depend>geometry_msgs</exec_depend>
+  <exec_depend>std_msgs</exec_depend>
+  <exec_depend>tram_vehicle_msgs</exec_depend>
+  <export><build_type>ament_python</build_type></export>
+</package>

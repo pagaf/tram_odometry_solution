@@ -1,0 +1,2 @@
+bag,gnss_samples,ours_rmse,ours_mae,ours_bias,front_rmse,rear_rmse,mean_rmse,ours_master_rmse,ours_rover_rmse,distance_ref_m,distance_est_m,distance_drift_m,distance_drift_pct
+data,0,,,,,,,,,,,,
