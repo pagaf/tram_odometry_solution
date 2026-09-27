@@ -495,6 +495,42 @@ python3 tools/replay_eval.py task_description/data --set stop_anchor_gain=0.0
 Это **не официальный score жюри**; эталон построен по той же GNSS-телеметрии, но методика жюри может отличаться.
 
 
+### Проверка на тестовом бэге организаторов (`check-code`)
+
+Эталон проверяющего скрипта — `/localization/kinematic_state` (`nav_msgs/Odometry`, `frame_id: map`,
+`child_frame_id: base_link`) в той же системе координат, что и pathgraph; это подтверждает выбор выходной
+системы координат. Офлайн-эквивалент `metrics.py` (пары по ближайшему `stamp` ±0.05 с):
+
+```bash
+python3 tools/checker_replay.py check-code/bags/30618_88aea4d9
+```
+
+| Бэг `30618_88aea4d9` (1310 с, GNSS только первые ~43 с) | RMSE | max |
+|---|---|---|
+| Скорость (vs `twist.twist.linear.x`) | **0.034 м/с** | 0.32 м/с |
+| Положение x | 4.10 м | 32.3 м |
+| Положение y | 4.43 м | 37.8 м |
+| Положение z | 0.18 м | 1.23 м |
+| Положение, 3D-расстояние | **6.04 м** | 49.7 м |
+
+Средняя 3D-ошибка — 2.2 м; на интервале 0–1240 с ошибка 0.2–4.5 м. Хвост RMSE даёт последние ~60 с:
+у Таллинской после конца ST маршрут разветвляется на северную (кольцо) и южную ветки. В обучающих
+прогонах трамваи почти всегда уходили на северную, она и зашита в `route.json`; в тестовом прогоне трамвай
+ушёл на южную (ошибка до ~50 м). Выбор ветки по двум скалярным скоростям колёс ненаблюдаем.
+
+Запуск самого проверяющего скрипта в его Docker-окружении (ROS 2 Humble):
+
+```bash
+cp -r src/tram_reserve_odometry check-code/src/        # tram_vehicle_msgs там уже есть
+cd check-code && ./scripts/build.sh && ./scripts/run.sh && ./scripts/enter.sh
+# внутри контейнера:
+colcon build --packages-select tram_vehicle_msgs hackathon_solution_checker tram_reserve_odometry
+source install/setup.bash
+ros2 launch tram_reserve_odometry run.py &              # оценщик
+ros2 run hackathon_solution_checker metrics &          # метрики каждые 5 с и в конце
+ros2 bag play bags/30618_88aea4d9                      # воспроизведение
+```
+
 ### Графики
 
 Воспроизводятся `python3 tools/plot_report.py task_description/data` (сохраняются в `docs/img/`).
@@ -693,6 +729,7 @@ ros2 topic echo /result/latency_ms
     ├── build_route.py       # маршрут из pathgraph + конечные + остановки
     ├── replay_eval.py       # офлайн-прогон кода ноды с метриками жюри
     ├── plot_report.py       # графики для docs/img
+    ├── checker_replay.py    # офлайн-эквивалент проверяющего скрипта организаторов
     ├── calibrate_from_bags.py
     ├── evaluate_dataset.py
     └── inspect_db3.py
